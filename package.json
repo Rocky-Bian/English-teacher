@@ -4,17 +4,29 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:mobile": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
+    "start:mobile": "next start --hostname 0.0.0.0",
+    "app:sync": "cap sync",
+    "app:ios": "cap open ios",
+    "app:android": "cap open android",
     "lint": "eslint"
   },
   "dependencies": {
+    "better-sqlite3": "^12.10.1",
     "next": "16.2.9",
+    "node-edge-tts": "^1.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

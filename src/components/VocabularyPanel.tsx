@@ -145,7 +145,7 @@ export function VocabularyPanel({ refreshKey }: VocabularyPanelProps) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col lg:flex-row">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden lg:flex-row">
       <SelectionVocabularyPopover
         selection={textSelection}
         onDismiss={() => setTextSelection(null)}
@@ -157,7 +157,7 @@ export function VocabularyPanel({ refreshKey }: VocabularyPanelProps) {
           });
         }}
       />
-      <aside className="flex max-h-[48vh] min-h-0 shrink-0 flex-col border-b border-zinc-200 p-4 lg:h-full lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r dark:border-zinc-800">
+      <aside className="flex max-h-[48vh] min-h-0 shrink-0 flex-col overflow-hidden border-b border-zinc-200 p-4 lg:h-full lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r dark:border-zinc-800">
         <div className="mb-4 shrink-0">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">
@@ -207,45 +207,45 @@ export function VocabularyPanel({ refreshKey }: VocabularyPanelProps) {
           />
         </form>
 
-        <div className="min-h-0 flex-1 overflow-y-auto lg:max-h-none">
+        <div className="vocab-scroll min-h-0 flex-1 overflow-y-scroll overscroll-contain pr-1">
           <div className="space-y-2 pb-2">
-          {entries.length === 0 && (
-            <p className="text-sm text-zinc-500">
-              还没有生词。在上方输入英文添加，或在对话、例句里划词加入。
-            </p>
-          )}
-          {entries.map((entry) => (
-            <div
-              key={entry.id}
-              className={`flex items-stretch gap-1 rounded-xl border transition ${
-                selectedId === entry.id
-                  ? "border-teal-500 bg-teal-50 dark:bg-teal-950/30"
-                  : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => setSelectedId(entry.id)}
-                className="min-w-0 flex-1 rounded-xl px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-750"
+            {entries.length === 0 && (
+              <p className="text-sm text-zinc-500">
+                还没有生词。在上方输入英文添加，或在对话、例句里划词加入。
+              </p>
+            )}
+            {entries.map((entry) => (
+              <div
+                key={entry.id}
+                className={`flex items-stretch gap-1 rounded-xl border transition ${
+                  selectedId === entry.id
+                    ? "border-teal-500 bg-teal-50 dark:bg-teal-950/30"
+                    : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800"
+                }`}
               >
-                <p className="font-medium text-zinc-800 dark:text-zinc-100">
-                  {entry.word}
-                </p>
-              </button>
-              <button
-                type="button"
-                title="移出生词本"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeWord(entry.id, entry.word);
-                }}
-                disabled={deleting}
-                className="shrink-0 self-center rounded-lg px-2 py-3 text-xs text-zinc-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-400"
-              >
-                移出
-              </button>
-            </div>
-          ))}
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(entry.id)}
+                  className="min-w-0 flex-1 rounded-xl px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-750"
+                >
+                  <p className="font-medium text-zinc-800 dark:text-zinc-100">
+                    {entry.word}
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  title="移出生词本"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeWord(entry.id, entry.word);
+                  }}
+                  disabled={deleting}
+                  className="shrink-0 self-center rounded-lg px-2 py-3 text-xs text-zinc-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-400"
+                >
+                  移出
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </aside>

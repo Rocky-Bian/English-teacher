@@ -51,8 +51,8 @@ export function AppShell() {
 
   return (
     <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.16),_transparent_34%),linear-gradient(180deg,#f8f7f2_0%,#f1efe8_100%)] dark:bg-zinc-950">
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-screen-2xl flex-col lg:px-4 lg:py-4">
-        <div className="flex min-h-[100dvh] flex-1 flex-col overflow-hidden lg:min-h-0 lg:rounded-[32px] lg:border lg:border-white/60 lg:bg-white/70 lg:shadow-[0_24px_80px_rgba(15,23,42,0.08)] lg:backdrop-blur dark:lg:border-zinc-800 dark:lg:bg-zinc-950/70">
+      <div className="mx-auto flex h-[100dvh] w-full max-w-screen-2xl flex-col lg:px-4 lg:py-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:rounded-[32px] lg:border lg:border-white/60 lg:bg-white/70 lg:shadow-[0_24px_80px_rgba(15,23,42,0.08)] lg:backdrop-blur dark:lg:border-zinc-800 dark:lg:bg-zinc-950/70">
           <header className="safe-top border-b border-zinc-200/80 bg-white/88 px-4 pb-4 pt-3 backdrop-blur lg:px-6 dark:border-zinc-800 dark:bg-zinc-900/88">
             <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">

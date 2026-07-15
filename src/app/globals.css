@@ -50,3 +50,28 @@ body {
 .safe-bottom-space {
   padding-bottom: calc(var(--tabbar-height) + var(--safe-area-bottom));
 }
+
+/* Always-visible thin scrollbar for vocabulary list */
+.vocab-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(113, 113, 122, 0.55) transparent;
+}
+
+.vocab-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.vocab-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.vocab-scroll::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.45);
+  border-radius: 999px;
+}
+
+.vocab-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(82, 82, 91, 0.7);
+}

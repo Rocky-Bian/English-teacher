@@ -96,7 +96,13 @@ let db: Database.Database | null = null;
 let neonSql: ReturnType<typeof neon> | null = null;
 
 function getPostgresUrl() {
-  return process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  const rawUrl = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  if (!rawUrl) return undefined;
+
+  const trimmed = rawUrl.trim().replace(/^['"]|['"]$/g, "");
+  const url = new URL(trimmed);
+  url.searchParams.delete("channel_binding");
+  return url.toString();
 }
 
 function shouldUseNeon() {

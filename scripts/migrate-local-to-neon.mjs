@@ -29,6 +29,16 @@ function loadEnvFile() {
   }
 }
 
+function getPostgresUrl() {
+  const rawUrl = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  if (!rawUrl) return undefined;
+
+  const trimmed = rawUrl.trim().replace(/^['"]|['"]$/g, "");
+  const url = new URL(trimmed);
+  url.searchParams.delete("channel_binding");
+  return url.toString();
+}
+
 function safeJson(raw, fallback) {
   if (!raw) return fallback;
   try {
@@ -155,7 +165,7 @@ function mergeVocabulary(existing, incoming) {
 async function main() {
   loadEnvFile();
 
-  const databaseUrl = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  const databaseUrl = getPostgresUrl();
   if (!databaseUrl) {
     throw new Error("Missing DATABASE_URL or POSTGRES_URL for Neon");
   }

@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import { neon } from "@neondatabase/serverless";
 import type {
   ChatMessage,
   Correction,
@@ -20,6 +21,7 @@ const DB_PATH = path.join(process.cwd(), "data", "english-teacher.db");
 const PROFILE_ID = "default";
 const UPSTASH_STATE_KEY =
   process.env.APP_STATE_KEY ?? "english-teacher:app-state";
+const NEON_STATE_KEY = process.env.APP_STATE_KEY ?? "default";
 const MAX_LEARNING_MEMORY = 4000;
 const MAX_WORK_MEMORY = 4000;
 const MAX_ERROR_ARCHIVE = 100;
@@ -91,6 +93,19 @@ interface RemoteAppState {
 }
 
 let db: Database.Database | null = null;
+let neonSql: ReturnType<typeof neon> | null = null;
+
+function getPostgresUrl() {
+  return process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+}
+
+function shouldUseNeon() {
+  return Boolean(getPostgresUrl());
+}
+
+function shouldUseRemoteState() {
+  return shouldUseNeon() || shouldUseUpstash();
+}
 
 function shouldUseUpstash() {
   return Boolean(
@@ -228,6 +243,64 @@ async function getUpstashState(): Promise<RemoteAppState> {
 
 async function setUpstashState(state: RemoteAppState) {
   await callUpstash(["SET", UPSTASH_STATE_KEY, JSON.stringify(state)]);
+}
+
+function getNeonSql() {
+  const url = getPostgresUrl();
+  if (!url) throw new Error("缺少 Neon PostgreSQL DATABASE_URL 配置");
+
+  neonSql ??= neon(url);
+  return neonSql;
+}
+
+async function ensureNeonSchema() {
+  await getNeonSql()`
+    CREATE TABLE IF NOT EXISTS app_state (
+      key TEXT PRIMARY KEY,
+      state JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+}
+
+async function getNeonState(): Promise<RemoteAppState> {
+  await ensureNeonSchema();
+
+  const rows = (await getNeonSql()`
+    SELECT state FROM app_state WHERE key = ${NEON_STATE_KEY} LIMIT 1
+  `) as Array<{ state?: Partial<RemoteAppState> }>;
+  const row = rows[0] as { state?: Partial<RemoteAppState> } | undefined;
+
+  if (!row?.state) {
+    const initial = getDefaultState();
+    await setNeonState(initial);
+    return initial;
+  }
+
+  return normalizeUpstashState(row.state);
+}
+
+async function setNeonState(state: RemoteAppState) {
+  await ensureNeonSchema();
+  await getNeonSql()`
+    INSERT INTO app_state (key, state, updated_at)
+    VALUES (${NEON_STATE_KEY}, ${JSON.stringify(state)}::jsonb, NOW())
+    ON CONFLICT (key)
+    DO UPDATE SET state = EXCLUDED.state, updated_at = NOW()
+  `;
+}
+
+async function getRemoteState(): Promise<RemoteAppState> {
+  if (shouldUseNeon()) return getNeonState();
+  return getUpstashState();
+}
+
+async function setRemoteState(state: RemoteAppState) {
+  if (shouldUseNeon()) {
+    await setNeonState(state);
+    return;
+  }
+  await setUpstashState(state);
 }
 
 function getSupabaseBaseUrl() {
@@ -634,8 +707,8 @@ function uniqueStrings(values: string[]) {
 }
 
 export async function getProfile(): Promise<UserProfile> {
-  if (shouldUseUpstash()) {
-    return toUserProfile((await getUpstashState()).profile);
+  if (shouldUseRemoteState()) {
+    return toUserProfile((await getRemoteState()).profile);
   }
 
   if (shouldUseSupabase()) {
@@ -646,8 +719,8 @@ export async function getProfile(): Promise<UserProfile> {
 }
 
 export async function getErrorsForTeacher(): Promise<string[]> {
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     return uniqueStrings([
       ...state.profile.errorArchive,
       ...state.profile.recentErrors,
@@ -669,8 +742,8 @@ export async function getErrorsForTeacher(): Promise<string[]> {
 }
 
 export async function getLearningMemory(): Promise<string> {
-  if (shouldUseUpstash()) {
-    return (await getUpstashState()).profile.learningMemory;
+  if (shouldUseRemoteState()) {
+    return (await getRemoteState()).profile.learningMemory;
   }
 
   if (shouldUseSupabase()) {
@@ -681,8 +754,8 @@ export async function getLearningMemory(): Promise<string> {
 }
 
 export async function getWorkMemory(): Promise<string> {
-  if (shouldUseUpstash()) {
-    return (await getUpstashState()).profile.workMemory;
+  if (shouldUseRemoteState()) {
+    return (await getRemoteState()).profile.workMemory;
   }
 
   if (shouldUseSupabase()) {
@@ -695,8 +768,8 @@ export async function getWorkMemory(): Promise<string> {
 export async function updateProfile(
   updates: Partial<UserProfile>
 ): Promise<UserProfile> {
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     state.profile = {
       ...state.profile,
       ...updates,
@@ -707,7 +780,7 @@ export async function updateProfile(
           : state.profile.autoSpeak,
       scenarioId: updates.scenarioId ?? state.profile.scenarioId,
     };
-    await setUpstashState(state);
+    await setRemoteState(state);
     return toUserProfile(state.profile);
   }
 
@@ -748,8 +821,8 @@ export async function updateProfile(
 export async function addRecentErrors(errors: string[]) {
   if (errors.length === 0) return;
 
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     state.profile.recentErrors = [
       ...state.profile.recentErrors,
       ...errors,
@@ -758,7 +831,7 @@ export async function addRecentErrors(errors: string[]) {
       ...state.profile.errorArchive,
       ...errors,
     ].slice(-MAX_ERROR_ARCHIVE);
-    await setUpstashState(state);
+    await setRemoteState(state);
     return;
   }
 
@@ -790,10 +863,10 @@ export async function addRecentErrors(errors: string[]) {
 }
 
 export async function hideRecentErrorsFromUI() {
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     state.profile.recentErrors = [];
-    await setUpstashState(state);
+    await setRemoteState(state);
     return;
   }
 
@@ -813,8 +886,8 @@ export async function getMessages(
   limit = 50,
   scenarioId: ScenarioId = "free"
 ): Promise<ChatMessage[]> {
-  if (shouldUseUpstash()) {
-    return (await getUpstashState()).messages
+  if (shouldUseRemoteState()) {
+    return (await getRemoteState()).messages
       .filter(
         (message) => !message.archivedAt && message.scenarioId === scenarioId
       )
@@ -865,10 +938,10 @@ export async function saveMessage(
     createdAt: new Date().toISOString(),
   };
 
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     state.messages.push({ ...message, scenarioId });
-    await setUpstashState(state);
+    await setRemoteState(state);
     return message;
   }
 
@@ -907,8 +980,8 @@ export async function saveMessage(
 }
 
 export async function archiveVisibleMessages(): Promise<number> {
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     const visible = state.messages.filter((message) => !message.archivedAt);
     if (visible.length === 0) return 0;
 
@@ -942,7 +1015,7 @@ export async function archiveVisibleMessages(): Promise<number> {
       }
     }
 
-    await setUpstashState(state);
+    await setRemoteState(state);
     return visible.length;
   }
 
@@ -1032,8 +1105,8 @@ export async function clearMessages() {
 }
 
 export async function getHomeworkList(): Promise<Homework[]> {
-  if (shouldUseUpstash()) {
-    return [...(await getUpstashState()).homework].sort((a, b) =>
+  if (shouldUseRemoteState()) {
+    return [...(await getRemoteState()).homework].sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt)
     );
   }
@@ -1064,9 +1137,9 @@ export async function getHomeworkList(): Promise<Homework[]> {
 }
 
 export async function getHomeworkById(id: string): Promise<Homework | null> {
-  if (shouldUseUpstash()) {
+  if (shouldUseRemoteState()) {
     return (
-      (await getUpstashState()).homework.find((homework) => homework.id === id) ??
+      (await getRemoteState()).homework.find((homework) => homework.id === id) ??
       null
     );
   }
@@ -1117,10 +1190,10 @@ export async function createHomework(
     dueAt,
   };
 
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     state.homework.unshift(homework);
-    await setUpstashState(state);
+    await setRemoteState(state);
     return homework;
   }
 
@@ -1162,13 +1235,13 @@ export async function createHomework(
 }
 
 export async function updateHomeworkGrade(id: string, grade: HomeworkGrade) {
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     const homework = state.homework.find((entry) => entry.id === id);
     if (homework) {
       homework.grade = grade;
       homework.status = "graded";
-      await setUpstashState(state);
+      await setRemoteState(state);
     }
     return;
   }
@@ -1190,8 +1263,8 @@ export async function updateHomeworkGrade(id: string, grade: HomeworkGrade) {
 }
 
 export async function getVocabularyList(): Promise<VocabularyEntry[]> {
-  if (shouldUseUpstash()) {
-    return [...(await getUpstashState()).vocabulary].sort((a, b) =>
+  if (shouldUseRemoteState()) {
+    return [...(await getRemoteState()).vocabulary].sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt)
     );
   }
@@ -1223,9 +1296,9 @@ export async function getVocabularyList(): Promise<VocabularyEntry[]> {
 export async function getVocabularyById(
   id: string
 ): Promise<VocabularyEntry | null> {
-  if (shouldUseUpstash()) {
+  if (shouldUseRemoteState()) {
     return (
-      (await getUpstashState()).vocabulary.find((entry) => entry.id === id) ??
+      (await getRemoteState()).vocabulary.find((entry) => entry.id === id) ??
       null
     );
   }
@@ -1262,9 +1335,9 @@ export async function findVocabularyByWord(
   const trimmed = word.trim();
   if (!trimmed) return null;
 
-  if (shouldUseUpstash()) {
+  if (shouldUseRemoteState()) {
     return (
-      (await getUpstashState()).vocabulary.find(
+      (await getRemoteState()).vocabulary.find(
         (entry) => entry.word.toLowerCase() === trimmed.toLowerCase()
       ) ?? null
     );
@@ -1309,10 +1382,10 @@ export async function createVocabularyEntry(
     createdAt: new Date().toISOString(),
   };
 
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     state.vocabulary.unshift(entry);
-    await setUpstashState(state);
+    await setRemoteState(state);
     return entry;
   }
 
@@ -1353,14 +1426,14 @@ export async function createVocabularyEntry(
 }
 
 export async function deleteVocabularyEntry(id: string): Promise<boolean> {
-  if (shouldUseUpstash()) {
-    const state = await getUpstashState();
+  if (shouldUseRemoteState()) {
+    const state = await getRemoteState();
     const before = state.vocabulary.length;
     state.vocabulary = state.vocabulary.filter((entry) => entry.id !== id);
     if (state.vocabulary.length === before) {
       return false;
     }
-    await setUpstashState(state);
+    await setRemoteState(state);
     return true;
   }
 

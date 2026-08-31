@@ -80,24 +80,29 @@ http://192.168.2.122:3000
 
 - Next.js 16 + TypeScript + Tailwind CSS
 - DeepSeek API（OpenAI 兼容格式）
-- 本地 SQLite / 线上 Upstash Redis REST（存储对话、作业、学习记录）
+- 本地 SQLite / 线上 Neon PostgreSQL（存储对话、作业、学习记录）
 
 ## 外网和手机 App 化
 
 项目现在支持两种运行模式：
 
 - 本地开发：不配置远程存储时，继续使用 SQLite 和本地 Whisper。
-- 线上部署：配置 Upstash Redis REST 后，数据会写入云端；不配置 `OPENAI_API_KEY` 时，线上先使用文字输入。
+- 线上部署：配置 Neon PostgreSQL `DATABASE_URL` 后，数据会写入云端；不配置 `OPENAI_API_KEY` 时，线上先使用文字输入。
 
 线上需要配置这些环境变量：
 
 ```text
 DEEPSEEK_API_KEY=sk-...
-UPSTASH_REDIS_REST_URL=https://...
-UPSTASH_REDIS_REST_TOKEN=...
+DATABASE_URL=postgresql://...
 ```
 
-Supabase 备用建表 SQL 仍保留在 [schema.sql](/Users/mac/Desktop/english-teacher/supabase/schema.sql:1)，以后如果要从 Upstash 换回 Supabase 可以继续用。
+如果需要把本地 SQLite 数据搬到 Neon，先把 `DATABASE_URL` 放进 `.env.local`，然后运行：
+
+```bash
+npm run migrate:neon
+```
+
+Upstash 和 Supabase 的备用配置仍保留，之后如果要切换回来也可以继续用。
 
 手机安装有两条路线：
 

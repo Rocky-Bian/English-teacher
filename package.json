@@ -11,9 +11,11 @@
     "app:sync": "cap sync",
     "app:ios": "cap open ios",
     "app:android": "cap open android",
+    "migrate:neon": "node scripts/migrate-local-to-neon.mjs",
     "lint": "eslint"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "better-sqlite3": "^12.10.1",
     "next": "16.2.9",
     "node-edge-tts": "^1.2.10",
